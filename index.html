@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Latice Chat</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #0f172a; color: white; text-align: center; padding: 10px; margin: 0;}
+        input, select { padding: 12px; width: 90%; margin: 8px 0; border-radius: 8px; border: none; background: #334155; color: white; font-size: 16px; }
+        button { background-color: #3b82f6; color: white; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; width: 100%; margin-top: 10px;}
+        .card { background-color: #1e293b; padding: 20px; margin: 15px auto; border-radius: 12px; text-align: left; max-width: 500px; }
+        
+        /* ESTILOS DEL CHAT */
+        .chat-box { height: 300px; overflow-y: scroll; background: #020617; padding: 10px; border-radius: 8px; margin-bottom: 10px; display: flex; flex-direction: column; }
+        .mensaje { padding: 8px 12px; margin: 5px; border-radius: 15px; max-width: 70%; width: fit-content; }
+        .mio { background-color: #3b82f6; align-self: flex-end; text-align: right; }
+        .suyo { background-color: #334155; align-self: flex-start; text-align: left; }
+        .input-chat-area { display: flex; gap: 5px; }
+    </style>
+</head>
+<body>
+
+    <div id="pantalla-registro" class="container">
+        <h1>🌐 Latice</h1>
+        <div class="card">
+            <h3>🚀 Crear Perfil</h3>
+            <input type="text" id="nombre" placeholder="Tu Nombre">
+            <select id="facultad">
+                <option value="Ingeniería">Ingeniería</option>
+                <option value="Ciencias">Ciencias</option>
+            </select>
+            <input type="text" id="intereses" placeholder="Intereses (ej: python, futbol)">
+            <input type="text" id="mision" placeholder="Misión hoy">
+            <button onclick="registrar()">Entrar</button>
+        </div>
+    </div>
+
+    <div id="pantalla-radar" style="display:none;">
+        <h3>📡 Radar</h3>
+        <p>Hola <b id="lbl-usuario"></b></p>
+        <button onclick="buscarMatch()">🔄 Escanear</button>
+        <div id="lista-matches"></div>
+    </div>
+
+    <div id="pantalla-chat" style="display:none;">
+        <h3>💬 Chat con <span id="lbl-contacto" style="color:#4ade80"></span></h3>
+        <div class="card">
+            <div id="caja-chat" class="chat-box"></div>
+            <div class="input-chat-area">
+                <input type="text" id="msg-input" placeholder="Escribe algo...">
+                <button style="width: 60px;" onclick="enviarMensaje()">➤</button>
+            </div>
+            <button onclick="volverRadar()" style="background:#ef4444; margin-top:5px">Salir</button>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURACIÓN ---
+        const IP = "192.168.100.248"; // <--- ¡VERIFICA QUE SEA TU IP!
+        const API = `http://${IP}:8000`;
+
+        let miId = null; 
+        let miNombre = "";
+        let contactoActual = "";
+        let chatInterval = null;
+
+        async function registrar() {
+            miNombre = document.getElementById('nombre').value;
+            const facultad = document.getElementById('facultad').value;
+            const intereses = document.getElementById('intereses').value.split(',');
+            const mision = document.getElementById('mision').value;
+
+            await fetch(`${API}/registrar`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre: miNombre, facultad, modo_faro: true, mision, intereses })
+            }).then(r => r.json()).then(data => {
+                miId = data.id_asignado;
+                document.getElementById('pantalla-registro').style.display = 'none';
+                document.getElementById('pantalla-radar').style.display = 'block';
+                document.getElementById('lbl-usuario').innerText = miNombre;
+            });
+        }
+
+        async function buscarMatch() {
+            const lista = document.getElementById('lista-matches');
+            lista.innerHTML = "Escaneando...";
+            const res = await fetch(`${API}/buscar-match/${miId}`);
+            const data = await res.json();
+            lista.innerHTML = "";
+
+            if (data.top_matches) {
+                data.top_matches.forEach(p => {
+                    lista.innerHTML += `
+                        <div class="card">
+                            <span style="color:#4ade80; float:right">${p.match_percent}%</span>
+                            <b>${p.nombre}</b><br><small>${p.mision}</small><br>
+                            <small style="color:#94a3b8">Común: ${p.temas_comun.join(", ")}</small>
+                            <button style="background:#10b981" onclick="abrirChat('${p.nombre}')">💬 Conectar</button>
+                        </div>`;
+                });
+            }
+        }
+
+        function abrirChat(nombreContacto) {
+            contactoActual = nombreContacto;
+            document.getElementById('pantalla-radar').style.display = 'none';
+            document.getElementById('pantalla-chat').style.display = 'block';
+            document.getElementById('lbl-contacto').innerText = contactoActual;
+            
+            // Iniciar actualización automática del chat cada 2 segundos
+            cargarMensajes();
+            chatInterval = setInterval(cargarMensajes, 2000);
+        }
+
+        async function enviarMensaje() {
+            const txt = document.getElementById('msg-input').value;
+            if(!txt) return;
+
+            await fetch(`${API}/enviar-mensaje`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ de_usuario: miNombre, para_usuario: contactoActual, texto: txt })
+            });
+            document.getElementById('msg-input').value = "";
+            cargarMensajes(); // Recargar rápido
+        }
+
+        async function cargarMensajes() {
+            const res = await fetch(`${API}/leer-mensajes/${miNombre}/${contactoActual}`);
+            const msgs = await res.json();
+            const caja = document.getElementById('caja-chat');
+            caja.innerHTML = "";
+
+            msgs.forEach(m => {
+                const clase = (m.de_usuario === miNombre) ? 'mio' : 'suyo';
+                //poner hora al lado del mensaje
+                let hora = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                //ponerla chiquita al lado del texto
+                caja.innerHTML += `
+                <div class="mensaje ${clase}"> 
+                    ${m.texto}
+                    <span style="font-size: 0.7em; opacity: 0.7; margin-left: 10px;">${hora}</span>
+                    </div> 
+                    `;
+
+
+            });
+            // Auto scroll abajo
+            caja.scrollTop = caja.scrollHeight;
+        }
+
+        function volverRadar() {
+            clearInterval(chatInterval);
+            document.getElementById('pantalla-chat').style.display = 'none';
+            document.getElementById('pantalla-radar').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
