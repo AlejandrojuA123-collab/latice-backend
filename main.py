@@ -1,10 +1,12 @@
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 from sqlalchemy import create_engine, Column, Integer, String, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+
 
 # --- BASE DE DATOS ---
 DATABASE_URL = "sqlite:///./latice.db"
@@ -42,6 +44,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.mount("/", StaticFiles(directory=".", html=True), name="static")
 
 def get_db():
     db = SessionLocal()
