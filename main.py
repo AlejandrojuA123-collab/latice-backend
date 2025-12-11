@@ -45,7 +45,7 @@ app.add_middleware(
 )
 
 # Servimos el frontend en la ruta raíz
-app.mount("/", StaticFiles(directory=".", html=True), name="static")
+
 
 def get_db():
     db = SessionLocal()
@@ -135,3 +135,4 @@ def leer(mi_nombre: str, contacto_nombre: str, db: Session = Depends(get_db)):
         ((MensajeDB.de_usuario == contacto_nombre) & (MensajeDB.para_usuario == mi_nombre))
     ).all()
     return msgs
+app.mount("/", StaticFiles(directory=".", html=True), name="static")
