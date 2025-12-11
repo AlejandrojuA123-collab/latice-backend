@@ -145,17 +145,20 @@
             document.getElementById('pantalla-radar').style.display = 'block';
             document.getElementById('lbl-usuario').innerText = miNombre;
         }
-
+        
         async function registrar() {
-            miNombre = document.getElementById('nombre').value;
-            const facultad = document.getElementById('facultad').value;
-            const intereses = document.getElementById('intereses').value.split(',');
-            const mision = document.getElementById('mision').value;
+        // 1. Tomamos los datos
+        miNombre = document.getElementById('nombre').value;
+        const facultad = document.getElementById('facultad').value;
+        const intereses = document.getElementById('intereses').value.split(',');
+        const mision = document.getElementById('mision').value;
 
-            // Si no hay email de Google, inventamos uno temporal (para pruebas manuales)
-            const emailFinal = window.emailGoogle || (miNombre.replace(/\s/g, '') + "@latice.test");
+        // 2. Usamos el email de Google (o inventamos uno si es prueba manual)
+        const emailFinal = window.emailGoogle || (miNombre.replace(/\s/g, '') + "@latice.test");
+        console.log("Intentando registrar a:", miNombre, emailFinal);
 
-            await fetch(`${API}/registrar`, {
+        try {
+            const response = await fetch(`${API}/registrar`, {
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -166,11 +169,23 @@
                     mision: mision, 
                     intereses: intereses 
                 })
-            }).then(r => r.json()).then(data => {
-                // Usamos el ID que nos devuelve Python
-                window.iniciarApp(data.id, data.nombre);
             });
+
+            // 3. SI EL SERVIDOR FALLA, NOS AVISA AQUÍ
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(JSON.stringify(errorData));
+            }
+
+            // 4. Si todo sale bien, entramos
+            const data = await response.json();
+            window.iniciarApp(data.id, data.nombre);
+
+        } catch (error) {
+            console.error("Error grave:", error);
+            alert("⚠️ Error al registrar: Probablemente el email ya existe o el servidor falló.\n" + error.message);
         }
+    }
 
         async function buscarMatch() {
             const lista = document.getElementById('lista-matches');
