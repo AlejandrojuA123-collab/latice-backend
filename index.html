@@ -23,6 +23,20 @@
         <h1>🌐 Latice</h1>
         <div class="card">
             <h3>🚀 Crear Perfil</h3>
+            <div style="text-align: center; margin-bottom: 20px;">
+    <button onclick="entrarConGoogle()" style="
+        background-color: #4285F4; 
+        color: white; 
+        padding: 12px 24px; 
+        border: none; 
+        border-radius: 4px; 
+        font-size: 16px; 
+        font-weight: bold; 
+        cursor: pointer;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+        🇬 Entrar con Google
+    </button>
+</div>
             <input type="text" id="nombre" placeholder="Tu Nombre">
             <select id="facultad">
                 <option value="Ingeniería">Ingeniería</option>
@@ -52,6 +66,52 @@
             <button onclick="volverRadar()" style="background:#ef4444; margin-top:5px">Salir</button>
         </div>
     </div>
+
+<script type="module">
+  // 1. Importamos las herramientas de Google directamente de internet
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+  // 2. TUS LLAVES 
+  const firebaseConfig = {
+    apiKey: "AIzaSyC9Zr4kh6NsgB0qB1SUppUsvIzkBahnOQc",
+    authDomain: "latice-auth.firebaseapp.com",
+    projectId: "latice-auth",
+    storageBucket: "latice-auth.firebasestorage.app",
+    messagingSenderId: "861296002124",
+    appId: "1:861296002124:web:b920a850717af71e4b60e9",
+    measurementId: "G-MMR4331SSX"
+  };
+
+  // 3. Inicializar Firebase
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const provider = new GoogleAuthProvider();
+
+  // 4. La Función del Login (La hacemos global con window)
+  window.entrarConGoogle = async function() {
+      try {
+          // Esto abre la ventana emergente de Google
+          const result = await signInWithPopup(auth, provider);
+          
+          // ¡Si llegamos aquí, el usuario entró con éxito!
+          const user = result.user;
+          console.log("Usuario conectado:", user.displayName);
+          console.log("Correo:", user.email);
+          console.log("Foto:", user.photoURL);
+
+          // Mostramos alerta de éxito (Temporal)
+          alert("¡Bienvenido a Latice, " + user.displayName + "!");
+
+          // AQUÍ ES DONDE LUEGO CONECTAREMOS CON LA BASE DE DATOS
+          // Para guardar su info en el backend...
+          
+      } catch (error) {
+          console.error("Error en login:", error);
+          alert("Error: " + error.message);
+      }
+  }
+</script>
 
     <script>
         // --- CONFIGURACIÓN ---
