@@ -7,7 +7,6 @@ from sqlalchemy import create_engine, Column, Integer, String, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
-
 # --- BASE DE DATOS ---
 DATABASE_URL = "sqlite:///./latice.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
@@ -19,23 +18,23 @@ class UsuarioDB(Base):
     __tablename__ = "usuarios"
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String, index=True)
+    email = Column(String, unique=True, index=True) # <--- ¡NUEVO! Guardamos el correo
     facultad = Column(String)
     modo_faro = Column(Boolean, default=True)
     mision = Column(String)
     intereses_str = Column(String)
 
-# NUEVA TABLA: MENSAJES 💬
 class MensajeDB(Base):
     __tablename__ = "mensajes"
     id = Column(Integer, primary_key=True, index=True)
-    de_usuario = Column(String)   # Quién lo envía
-    para_usuario = Column(String) # Para quién es
-    texto = Column(String)        # El mensaje
+    de_usuario = Column(String)
+    para_usuario = Column(String)
+    texto = Column(String)
 
 Base.metadata.create_all(bind=engine)
 
 # --- APP ---
-app = FastAPI(title="Latice API con Chat")
+app = FastAPI(title="Latice API con Google Login")
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,6 +43,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Servimos el frontend en la ruta raíz
 app.mount("/", StaticFiles(directory=".", html=True), name="static")
 
 def get_db():
@@ -51,9 +52,10 @@ def get_db():
     try: yield db
     finally: db.close()
 
-# --- ESQUEMAS ---
+# --- ESQUEMAS (Pydantic) ---
 class UsuarioEntrada(BaseModel):
     nombre: str
+    email: str  # <---  Recibimos el correo
     facultad: str
     modo_faro: bool
     mision: str
@@ -66,12 +68,39 @@ class MensajeEntrada(BaseModel):
 
 # --- ENDPOINTS ---
 
+# 1. NUEVO: Verificar si el usuario ya existe por su email
+@app.get("/validar-google/{email}")
+def validar_usuario_google(email: str, db: Session = Depends(get_db)):
+    # Buscamos en la base de datos
+    usuario = db.query(UsuarioDB).filter(UsuarioDB.email == email).first()
+    
+    if usuario:
+        # Si existe, devolvemos sus datos clave
+        return {"existe": True, "id": usuario.id, "nombre": usuario.nombre}
+    else:
+        # No existe
+        return {"existe": False}
+
+# 2. MODIFICADO: Registrar ahora guarda el email
 @app.post("/registrar")
 def registrar_usuario(usuario: UsuarioEntrada, db: Session = Depends(get_db)):
+    # Convertimos lista de intereses a texto
     intereses_texto = ",".join([i.lower().strip() for i in usuario.intereses])
-    nuevo = UsuarioDB(nombre=usuario.nombre, facultad=usuario.facultad, modo_faro=usuario.modo_faro, mision=usuario.mision, intereses_str=intereses_texto)
-    db.add(nuevo); db.commit(); db.refresh(nuevo)
-    return {"mensaje": "OK", "id_asignado": nuevo.id, "nombre": nuevo.nombre}
+    
+    # Creamos el usuario con email
+    nuevo = UsuarioDB(
+        nombre=usuario.nombre, 
+        email=usuario.email, # <--- ¡AQUÍ SE GUARDA!
+        facultad=usuario.facultad, 
+        modo_faro=usuario.modo_faro, 
+        mision=usuario.mision, 
+        intereses_str=intereses_texto
+    )
+    
+    db.add(nuevo)
+    db.commit()
+    db.refresh(nuevo)
+    return {"mensaje": "OK", "id": nuevo.id, "nombre": nuevo.nombre} # Ojo: cambié "id_asignado" por "id" para ser consistente
 
 @app.get("/buscar-match/{usuario_id}")
 def algoritmo_match(usuario_id: int, db: Session = Depends(get_db)):
@@ -91,7 +120,7 @@ def algoritmo_match(usuario_id: int, db: Session = Depends(get_db)):
     
     return {"usuario": yo.nombre, "top_matches": sorted(resultados, key=lambda x: x['match_percent'], reverse=True)}
 
-# --- NUEVOS ENDPOINTS PARA CHAT 💬 ---
+# --- ENDPOINTS CHAT ---
 
 @app.post("/enviar-mensaje")
 def enviar(msg: MensajeEntrada, db: Session = Depends(get_db)):
@@ -101,7 +130,6 @@ def enviar(msg: MensajeEntrada, db: Session = Depends(get_db)):
 
 @app.get("/leer-mensajes/{mi_nombre}/{contacto_nombre}")
 def leer(mi_nombre: str, contacto_nombre: str, db: Session = Depends(get_db)):
-    # Trae los mensajes entre YO y EL CONTACTO (en ambas direcciones)
     msgs = db.query(MensajeDB).filter(
         ((MensajeDB.de_usuario == mi_nombre) & (MensajeDB.para_usuario == contacto_nombre)) |
         ((MensajeDB.de_usuario == contacto_nombre) & (MensajeDB.para_usuario == mi_nombre))

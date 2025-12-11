@@ -2,7 +2,8 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Latice Chat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+    <title>Latice Chat</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; background-color: #0f172a; color: white; text-align: center; padding: 10px; margin: 0;}
         input, select { padding: 12px; width: 90%; margin: 8px 0; border-radius: 8px; border: none; background: #334155; color: white; font-size: 16px; }
@@ -23,27 +24,32 @@
         <h1>🌐 Latice</h1>
         <div class="card">
             <h3>🚀 Crear Perfil</h3>
+            
             <div style="text-align: center; margin-bottom: 20px;">
-    <button onclick="entrarConGoogle()" style="
-        background-color: #4285F4; 
-        color: white; 
-        padding: 12px 24px; 
-        border: none; 
-        border-radius: 4px; 
-        font-size: 16px; 
-        font-weight: bold; 
-        cursor: pointer;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-        🇬 Entrar con Google
-    </button>
-</div>
+                <button onclick="entrarConGoogle()" style="
+                    background-color: #4285F4; 
+                    color: white; 
+                    padding: 12px 24px; 
+                    border: none; 
+                    border-radius: 4px; 
+                    font-size: 16px; 
+                    font-weight: bold; 
+                    cursor: pointer;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                    🇬 Entrar con Google
+                </button>
+                <p style="font-size: 12px; color: #94a3b8; margin-top: 10px;">o completa tus datos manual:</p>
+            </div>
+
             <input type="text" id="nombre" placeholder="Tu Nombre">
             <select id="facultad">
                 <option value="Ingeniería">Ingeniería</option>
                 <option value="Ciencias">Ciencias</option>
+                <option value="Derecho">Derecho</option>
+                <option value="Arquitectura">Arquitectura</option>
             </select>
             <input type="text" id="intereses" placeholder="Intereses (ej: python, futbol)">
-            <input type="text" id="mision" placeholder="Misión hoy">
+            <input type="text" id="mision" placeholder="Misión hoy (ej: buscar socio)">
             <button onclick="registrar()">Entrar</button>
         </div>
     </div>
@@ -67,61 +73,78 @@
         </div>
     </div>
 
-<script type="module">
-  // 1. Importamos las herramientas de Google directamente de internet
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+      import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-  // 2. TUS LLAVES 
-  const firebaseConfig = {
-    apiKey: "AIzaSyC9Zr4kh6NsgB0qB1SUppUsvIzkBahnOQc",
-    authDomain: "latice-auth.firebaseapp.com",
-    projectId: "latice-auth",
-    storageBucket: "latice-auth.firebasestorage.app",
-    messagingSenderId: "861296002124",
-    appId: "1:861296002124:web:b920a850717af71e4b60e9",
-    measurementId: "G-MMR4331SSX"
-  };
+      const firebaseConfig = {
+        apiKey: "AIzaSyC9Zr4kh6NsgB0qB1SUppUsvIzkBahnOQc",
+        authDomain: "latice-auth.firebaseapp.com",
+        projectId: "latice-auth",
+        storageBucket: "latice-auth.firebasestorage.app",
+        messagingSenderId: "861296002124",
+        appId: "1:861296002124:web:b920a850717af71e4b60e9",
+        measurementId: "G-MMR4331SSX"
+      };
 
-  // 3. Inicializar Firebase
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const provider = new GoogleAuthProvider();
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const provider = new GoogleAuthProvider();
 
-  // 4. La Función del Login (La hacemos global con window)
-  window.entrarConGoogle = async function() {
-      try {
-          // Esto abre la ventana emergente de Google
-          const result = await signInWithPopup(auth, provider);
-          
-          // ¡Si llegamos aquí, el usuario entró con éxito!
-          const user = result.user;
-          console.log("Usuario conectado:", user.displayName);
-          console.log("Correo:", user.email);
-          console.log("Foto:", user.photoURL);
+      window.entrarConGoogle = async function() {
+          try {
+              // 1. Google nos da el usuario
+              const result = await signInWithPopup(auth, provider);
+              const user = result.user;
+              const email = user.email;
+              
+              console.log("Verificando email:", email);
 
-          // Mostramos alerta de éxito (Temporal)
-          alert("¡Bienvenido a Latice, " + user.displayName + "!");
+              // 2. Preguntamos a TU Backend si ya existe
+              const resp = await fetch(`/validar-google/${email}`);
+              const data = await resp.json();
 
-          // AQUÍ ES DONDE LUEGO CONECTAREMOS CON LA BASE DE DATOS
-          // Para guardar su info en el backend...
-          
-      } catch (error) {
-          console.error("Error en login:", error);
-          alert("Error: " + error.message);
+              if (data.existe) {
+                  // --- YA EXISTE: LOGIN DIRECTO ---
+                  alert("¡Bienvenido de nuevo, " + data.nombre + "!");
+                  window.iniciarApp(data.id, data.nombre);
+              } else {
+                  // --- ES NUEVO: REGISTRO ---
+                  alert("Hola " + user.displayName + ". \nPor favor completa tu Facultad y Misión para terminar.");
+                  
+                  // Rellenamos el nombre
+                  document.getElementById('nombre').value = user.displayName;
+                  
+                  // Guardamos el email para usarlo al dar click en "Entrar"
+                  window.emailGoogle = email; 
+              }
+              
+          } catch (error) {
+              console.error("Error:", error);
+              alert("Error: " + error.message);
+          }
       }
-  }
-</script>
+    </script>
 
     <script>
         // --- CONFIGURACIÓN ---
-        const IP = "192.168.100.248"; 
-        const API = ``;
+        const API = ""; 
 
         let miId = null; 
         let miNombre = "";
         let contactoActual = "";
         let chatInterval = null;
+        
+        window.emailGoogle = ""; // Variable temporal para el correo
+
+        // Función auxiliar para iniciar la interfaz
+        window.iniciarApp = function(id, nombre) {
+            miId = id;
+            miNombre = nombre;
+            document.getElementById('pantalla-registro').style.display = 'none';
+            document.getElementById('pantalla-radar').style.display = 'block';
+            document.getElementById('lbl-usuario').innerText = miNombre;
+        }
 
         async function registrar() {
             miNombre = document.getElementById('nombre').value;
@@ -129,14 +152,23 @@
             const intereses = document.getElementById('intereses').value.split(',');
             const mision = document.getElementById('mision').value;
 
+            // Si no hay email de Google, inventamos uno temporal (para pruebas manuales)
+            const emailFinal = window.emailGoogle || (miNombre.replace(/\s/g, '') + "@latice.test");
+
             await fetch(`${API}/registrar`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nombre: miNombre, facultad, modo_faro: true, mision, intereses })
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    nombre: miNombre, 
+                    email: emailFinal,   
+                    facultad: facultad, 
+                    modo_faro: true, 
+                    mision: mision, 
+                    intereses: intereses 
+                })
             }).then(r => r.json()).then(data => {
-                miId = data.id_asignado;
-                document.getElementById('pantalla-registro').style.display = 'none';
-                document.getElementById('pantalla-radar').style.display = 'block';
-                document.getElementById('lbl-usuario').innerText = miNombre;
+                // Usamos el ID que nos devuelve Python
+                window.iniciarApp(data.id, data.nombre);
             });
         }
 
@@ -166,7 +198,6 @@
             document.getElementById('pantalla-chat').style.display = 'block';
             document.getElementById('lbl-contacto').innerText = contactoActual;
             
-            // Iniciar actualización automática del chat cada 2 segundos
             cargarMensajes();
             chatInterval = setInterval(cargarMensajes, 2000);
         }
@@ -180,7 +211,7 @@
                 body: JSON.stringify({ de_usuario: miNombre, para_usuario: contactoActual, texto: txt })
             });
             document.getElementById('msg-input').value = "";
-            cargarMensajes(); // Recargar rápido
+            cargarMensajes(); 
         }
 
         async function cargarMensajes() {
@@ -191,19 +222,13 @@
 
             msgs.forEach(m => {
                 const clase = (m.de_usuario === miNombre) ? 'mio' : 'suyo';
-                //poner hora al lado del mensaje
                 let hora = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                //ponerla chiquita al lado del texto
                 caja.innerHTML += `
                 <div class="mensaje ${clase}"> 
                     ${m.texto}
                     <span style="font-size: 0.7em; opacity: 0.7; margin-left: 10px;">${hora}</span>
-                    </div> 
-                    `;
-
-
+                </div>`;
             });
-            // Auto scroll abajo
             caja.scrollTop = caja.scrollHeight;
         }
 
